@@ -1,6 +1,6 @@
-# Build brief: Node pdf-defang
+# Build brief: pdf-defang-js
 
-Port [kovetz-PDF/pdf-defang](https://github.com/kovetz-PDF/pdf-defang) (MIT, Python + pikepdf) to TypeScript. Do not invent a new threat model. Match their API and strip matrix, then publish to npm if the name situation is settled.
+Port [kovetz-PDF/pdf-defang](https://github.com/kovetz-PDF/pdf-defang) (MIT, Python + pikepdf) to TypeScript. Do not invent a new threat model. Match their API and strip matrix. Publish as `pdf-defang-js`.
 
 This folder started as notes only. There is no library code here on purpose.
 
@@ -21,10 +21,10 @@ A working TypeScript sketch of the `strict` walk (pdf-lib, fail-open, Astron-sha
 
 ## Name and license
 
-- Python package and GitHub repo: `pdf-defang`, MIT, built by [kovetz.co.il](https://kovetz.co.il).
-- npm: `pdf-defang` was unpublished / unused on 2026-09-01.
-- Do not squat the name without asking. Email in their README: contact@kovetz.co.il. Offer to be an official JS port or pick `pdf-defang-js`.
+- This package: `pdf-defang-js` on npm. CLI bin: `pdf-defang-js` (do not take the `pdf-defang` command; that is the Python CLI).
+- Python package and GitHub repo stay `pdf-defang`, MIT, built by [kovetz.co.il](https://kovetz.co.il).
 - Keep MIT. Credit them in README. Link the Python repo. Do not copy their README prose wholesale.
+- A courtesy note to contact@kovetz.co.il is nice. It is not a blocker.
 
 ## Public API to match
 
@@ -40,7 +40,7 @@ sanitizeBytes(bytes, options?: { password?: string; level?: 'strict' | 'balanced
 scanBytes(bytes): Promise<ScanReport>
 ```
 
-Also a small CLI later: `pdf-defang clean`, `pdf-defang scan`, `--level`, `--json`, exit codes 0 / 1 / 2 as in the Python CLI.
+Also a small CLI later: `pdf-defang-js clean`, `pdf-defang-js scan`, `--level`, `--json`, exit codes 0 / 1 / 2 as in the Python CLI.
 
 `SanitizeError` on unparseable or encrypted-without-password for the bytes API. Do not silently return the original bytes from `sanitizeBytes`. File `sanitize()` can leave the file untouched and return a report with `error`, matching Python.
 
@@ -140,15 +140,14 @@ Do not recompute the expected report by running the implementation. Use literals
 - Copy Astron's `disarmPdfBytes` logger / S3 / fail-open ingest policy into this package. Fail-open is an app choice. This library should fail loudly on the bytes API.
 - Flatten, rasterize, or rewrite page content streams.
 - Add antivirus, VirusTotal, or a network call.
-- Publish to npm until the name is agreed and the strip matrix has tests.
+- Publish to npm until the strip matrix has tests.
 - Vendor the Python source. Read it, reimplement against pdf-lib.
 
 ## First PR for the builder
 
-1. Email or issue to kovetz about the name.
-2. `package.json` + pdf-lib + TypeScript.
-3. `sanitizeBytes` / `scanBytes` for `strict` only, with fixtures.
-4. Add `balanced`.
-5. File path helpers.
-6. README that matches their threat-model section, shorter.
-7. Publish when tests are green and the name is clear.
+1. `package.json` name `pdf-defang-js` + pdf-lib + TypeScript.
+2. `sanitizeBytes` / `scanBytes` for `strict` only, with fixtures.
+3. Add `balanced`.
+4. File path helpers.
+5. README that matches their threat-model section, shorter.
+6. Publish when tests are green.
