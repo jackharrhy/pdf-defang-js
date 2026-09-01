@@ -4,7 +4,7 @@ TypeScript port of [pdf-defang](https://github.com/kovetz-PDF/pdf-defang).
 
 Strips what a PDF asks a viewer to run: JavaScript, OpenAction, Launch, unsafe URI schemes, XFA, and everything else on [their protections list](https://kovetz-pdf.github.io/pdf-defang/protections/). Text, images, layout, field values, bookmarks, metadata, and ordinary http(s)/mailto links stay.
 
-It does not flatten or rasterize pages. The file is parsed in your process, so a crafted PDF can crash pdf-lib the same way it can crash pikepdf. If you need isolation, use a sandbox or [Dangerzone](https://dangerzone.rocks/). This package only strips active content.
+It does not flatten or rasterize pages. The file is parsed in your process, so a crafted PDF can crash pdf-lib. If you need isolation, use a sandbox or [Dangerzone](https://dangerzone.rocks/). This package only strips active content.
 
 ## Install
 
@@ -42,7 +42,7 @@ pdf-defang-js clean upload.pdf
 pdf-defang-js scan upload.pdf --json
 ```
 
-Exit codes: 0 clean / no risk, 1 stripped or risky, 2 failed. The binary is `pdf-defang-js` so it does not collide with the Python `pdf-defang` command.
+Exit codes: 0 clean / no risk, 1 stripped or risky, 2 failed.
 
 ## Credit
 
