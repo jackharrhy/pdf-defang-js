@@ -1,8 +1,6 @@
-# Build brief: pdf-defang-js
+# pdf-defang-js
 
-Port [kovetz-PDF/pdf-defang](https://github.com/kovetz-PDF/pdf-defang) (MIT, Python + pikepdf) to TypeScript. Do not invent a new threat model. Match their API and strip matrix. Publish as `pdf-defang-js`.
-
-This folder started as notes only. There is no library code here on purpose.
+Port [kovetz-PDF/pdf-defang](https://github.com/kovetz-PDF/pdf-defang) (MIT, Python + pikepdf) to TypeScript. Do not invent a new threat model. Match their strip matrix and report fields. The JS call site is a namespace object (`pdfDefang`), not a Python-shaped bag of loose functions. Publish as `pdf-defang-js`.
 
 ## Why this exists
 
@@ -10,14 +8,12 @@ A Node web app that accepts PDF uploads has no drop-in sanitizer on npm. Searche
 
 Closest prior art:
 
-- **pdf-defang (PyPI)** — the thing to port. `scan` / `sanitize` / `sanitize_bytes`, `strict` vs `balanced`. Docs: https://kovetz-pdf.github.io/pdf-defang/
-- **pdf-lib discussion #1438** — people paste their own catalog / Annots walk. That is the usual Node pattern, not a library.
-- **pdf-xss-checker** — detect-only regex on extracted text. Not a rewrite.
-- **@coroboros/pdf-cleaner** — pdf-lib, but only links + metadata. JS strip is out of scope.
-- **unpdf / pdf-parse / pdf.js** — extract or render.
-- **Dangerzone / Ghostscript pdfwrite** — flatten / rasterize. Different product.
-
-A working TypeScript sketch of the `strict` walk (pdf-lib, fail-open, Astron-shaped API) lives in another repo: `~/repos/gndctl/astron/src/lib/pdf/disarmPdf.ts` and its tests. Use that as a starting implementation, not as the public API. This package should look like Python pdf-defang, not like Astron.
+- pdf-defang (PyPI): the thing to port. `scan` / `sanitize` / `sanitize_bytes`, `strict` vs `balanced`. Docs: https://kovetz-pdf.github.io/pdf-defang/
+- pdf-lib discussion #1438: people paste their own catalog / Annots walk. That is the usual Node pattern, not a library.
+- pdf-xss-checker: detect-only regex on extracted text. Not a rewrite.
+- @coroboros/pdf-cleaner: pdf-lib, but only links + metadata. JS strip is out of scope.
+- unpdf / pdf-parse / pdf.js: extract or render.
+- Dangerzone / Ghostscript pdfwrite: flatten / rasterize. Different product.
 
 ## Name and license
 
@@ -26,23 +22,29 @@ A working TypeScript sketch of the `strict` walk (pdf-lib, fail-open, Astron-sha
 - Keep MIT. Credit them in README. Link the Python repo. Do not copy their README prose wholesale.
 - A courtesy note to contact@kovetz.co.il is nice. It is not a blocker.
 
-## Public API to match
-
-Python surface (from their README / `pdf_defang` package):
+## Public API
 
 ```ts
-sanitize(path, options?: { password?: string; level?: 'strict' | 'balanced' }): Promise<boolean>
-sanitize(path, options: { returnReport: true; password?: string; level?: 'strict' | 'balanced' }): Promise<SanitizeReport>
+import { pdfDefang, SanitizeError } from 'pdf-defang-js'
 
-scan(path): Promise<ScanReport>
+pdfDefang.sanitize(bytes, options?: { level?: 'strict' | 'balanced' }): Promise<Uint8Array>
+pdfDefang.sanitize(bytes, options: { returnReport: true; level?: 'strict' | 'balanced' }): Promise<SanitizeResult>
 
-sanitizeBytes(bytes, options?: { password?: string; level?: 'strict' | 'balanced' }): Promise<Uint8Array>
-scanBytes(bytes): Promise<ScanReport>
+pdfDefang.scan(bytes): Promise<ScanReport>
+
+pdfDefang.sanitizeFile(path, options?: { level?: 'strict' | 'balanced' }): Promise<boolean>
+pdfDefang.sanitizeFile(path, options: { returnReport: true; level?: 'strict' | 'balanced' }): Promise<SanitizeReport>
+
+pdfDefang.scanFile(path): Promise<ScanReport>
 ```
 
-Also a small CLI later: `pdf-defang-js clean`, `pdf-defang-js scan`, `--level`, `--json`, exit codes 0 / 1 / 2 as in the Python CLI.
+Export `pdfDefang`, `SanitizeError`, report classes, and the option/report types. Do not export loose `sanitize` / `scan` functions.
 
-`SanitizeError` on unparseable or encrypted-without-password for the bytes API. Do not silently return the original bytes from `sanitizeBytes`. File `sanitize()` can leave the file untouched and return a report with `error`, matching Python.
+`pdfDefang.sanitize` is the bytes API: throws `SanitizeError` on unparseable or encrypted files. Do not silently return the original bytes. `pdfDefang.sanitizeFile` can leave the file untouched and return a report with `error`.
+
+Encrypted PDFs are out of scope. There is no `password` option. Decrypt with another library, then call this on the plaintext.
+
+CLI: `pdf-defang-js clean`, `pdf-defang-js scan`, `--level`, `--json`, exit codes 0 / 1 / 2 as in the Python CLI.
 
 Default `level` is `strict`.
 
@@ -76,7 +78,9 @@ Preserve visible content: text, images, layout, field values, bookmarks, metadat
 
 Use **pdf-lib** (pure JS, already common in Node apps). Do not take a qpdf / pikepdf native dependency for v1.
 
-pdf-lib will not open some encrypted or corrupt files. That is fine: raise `SanitizeError`, do not claim a clean file.
+Encrypted files are out of scope. Raise `SanitizeError` (or a scan report with `is_encrypted`). Do not claim a clean file. Callers who need to open encrypted PDFs should decrypt them elsewhere first.
+
+Corrupt files also fail. That is fine.
 
 After a successful load, hex names and object streams are already visible. Do not treat those as a separate miss.
 
@@ -86,26 +90,29 @@ pdf-lib `context.obj({ URI: 'javascript:...' })` stores a name, not a string. Re
 
 In scope: content the PDF asks a viewer to execute.
 
-Out of scope: viewer parser memory-corruption. This library parses the file in-process. It is not Dangerzone.
+Out of scope: viewer parser memory-corruption, and encrypted PDFs. This library parses the file in-process. It is not Dangerzone.
 
 Say that in the README. Do not market it as a CDR product.
 
-## Suggested layout
+## Layout
 
 ```
-src/index.ts          // public exports
-src/sanitize.ts       // file + bytes
+src/index.ts
+src/sanitize.ts       bytes API
+src/files.ts          path helpers
 src/scan.ts
-src/strip.ts          // shared walk
-src/report.ts         // SanitizeReport / ScanReport / risk_level
+src/strip.ts          shared walk
+src/pdf.ts            dict helpers and Fields/Annots visit
+src/load.ts
 src/uri.ts
-src/cli.ts            // later
-test/                 // fixtures generated like the Python tests
+src/report.ts
+src/error.ts
+src/types.ts
+src/cli.ts
+test/
 ```
 
-TypeScript, ESM, Node 20+. Vitest or node:test. No extra framework.
-
-Ship `sanitize` / `scan` / `sanitizeBytes` / `scanBytes` and the report types. CLI can be a follow-up.
+TypeScript, ESM, Node 20+. Vitest. No extra framework.
 
 ## Reports
 
@@ -126,28 +133,19 @@ Port the Python fixtures in `tests/fixtures/generate_fixtures.py` (OpenAction, N
 Assert:
 
 - clean PDF: same bytes, or at least no rewrite
-- each slot: key gone after `sanitizeBytes`, still present after `scan`
+- each slot: key gone after `pdfDefang.sanitize`, still present after `pdfDefang.scan`
 - `balanced` keeps form JS / SubmitForm / CO / EmbeddedFiles
 - `strict` removes them
 - https link stays
 - `javascript:` URI goes
-- corrupt / not-pdf / encrypted without password: error, original bytes unchanged
+- corrupt / not-pdf / encrypted: error, original bytes unchanged
 
 Do not recompute the expected report by running the implementation. Use literals.
 
 ## Do not
 
-- Copy Astron's `disarmPdfBytes` logger / S3 / fail-open ingest policy into this package. Fail-open is an app choice. This library should fail loudly on the bytes API.
+- Fail-open on the bytes API. That is an app choice. This library should fail loudly.
 - Flatten, rasterize, or rewrite page content streams.
 - Add antivirus, VirusTotal, or a network call.
 - Publish to npm until the strip matrix has tests.
 - Vendor the Python source. Read it, reimplement against pdf-lib.
-
-## First PR for the builder
-
-1. `package.json` name `pdf-defang-js` + pdf-lib + TypeScript.
-2. `sanitizeBytes` / `scanBytes` for `strict` only, with fixtures.
-3. Add `balanced`.
-4. File path helpers.
-5. README that matches their threat-model section, shorter.
-6. Publish when tests are green.

@@ -1,0 +1,55 @@
+{
+  "name": "pdf-defang-js",
+  "version": "0.1.0",
+  "description": "Strip JavaScript, OpenAction, Launch actions and other active content from PDFs. TypeScript port of pdf-defang, on pdf-lib.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "pdf-defang-js": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "prepack": "tsdown",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "pdf",
+    "sanitize",
+    "defang"
+  ],
+  "license": "MIT",
+  "author": "Jack Arthur Harrhy <me@jackharrhy.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jackharrhy/pdf-defang-js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jackharrhy/pdf-defang-js/issues"
+  },
+  "homepage": "https://github.com/jackharrhy/pdf-defang-js#readme",
+  "dependencies": {
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/core": "^0.18.1",
+    "@types/node": "^24.3.0",
+    "publint": "^0.3.12",
+    "tsdown": "^0.22.14",
+    "typescript": "^5.9.2",
+    "vitest": "^4.1.11"
+  }
+}
