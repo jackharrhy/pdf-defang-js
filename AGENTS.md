@@ -74,6 +74,14 @@ Walk page `Annots` and the AcroForm `Fields` / `Kids` tree. Same widget can appe
 
 Preserve visible content: text, images, layout, field values, bookmarks, metadata, safe http(s)/mailto links.
 
+## Known misses (close these)
+
+Python pdf-defang has the same holes. Found while reviewing a pdf-lib ingest walk.
+
+1. `/A /Next` chains. A first action of `GoTo` or a safe URI whose `/Next` (dict or array) is JavaScript, Launch, or another listed type is left intact. Acrobat runs the chain. Walk `/Next` with a seen set and treat the whole `/A` as dirty if any step is dangerous.
+
+2. Circular AcroForm `Kids`. `visitOnce` skips re-inspect but `visitFieldTree` still walks `Kids`, so a cycle overflows. If a field is already in `seen`, stop. Same for `countNamedTreeEntries`. A fail-open caller then stores the original file, including catalog hooks already found. This library should still fail loudly, but the walk should not throw.
+
 ## Parser
 
 Use **pdf-lib** (pure JS, already common in Node apps). Do not take a qpdf / pikepdf native dependency for v1.
