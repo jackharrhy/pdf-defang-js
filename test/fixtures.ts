@@ -526,6 +526,227 @@ startxref
 `);
 }
 
+export async function createGotoThenJavaScriptPdf(): Promise<Uint8Array> {
+  const { pdf, pages } = await newPdf(1);
+  const js = register(
+    pdf,
+    pdf.context.obj({
+      S: 'JavaScript',
+      JS: PDFString.of('app.alert(1)'),
+    }),
+  );
+  const annot = register(
+    pdf,
+    pdf.context.obj({
+      Type: 'Annot',
+      Subtype: 'Link',
+      Rect: [100, 100, 200, 120],
+      A: {
+        S: 'GoTo',
+        D: [pages[0]!.ref, 'Fit'],
+        Next: js,
+      },
+    }),
+  );
+  setAnnots(pdf, pages[0]!, [annot]);
+  return pdf.save();
+}
+
+export async function createHttpsThenLaunchPdf(): Promise<Uint8Array> {
+  const { pdf, pages } = await newPdf(1);
+  const launch = register(
+    pdf,
+    pdf.context.obj({
+      S: 'Launch',
+      F: PDFString.of('calc.exe'),
+    }),
+  );
+  const annot = register(
+    pdf,
+    pdf.context.obj({
+      Type: 'Annot',
+      Subtype: 'Link',
+      Rect: [100, 100, 200, 120],
+      A: {
+        S: 'URI',
+        URI: PDFString.of('https://example.com/safe'),
+        Next: launch,
+      },
+    }),
+  );
+  setAnnots(pdf, pages[0]!, [annot]);
+  return pdf.save();
+}
+
+export async function createGotoThenActionArrayPdf(): Promise<Uint8Array> {
+  const { pdf, pages } = await newPdf(1);
+  const js = register(
+    pdf,
+    pdf.context.obj({
+      S: 'JavaScript',
+      JS: PDFString.of('app.alert(1)'),
+    }),
+  );
+  const launch = register(
+    pdf,
+    pdf.context.obj({
+      S: 'Launch',
+      F: PDFString.of('calc.exe'),
+    }),
+  );
+  const annot = register(
+    pdf,
+    pdf.context.obj({
+      Type: 'Annot',
+      Subtype: 'Link',
+      Rect: [100, 100, 200, 120],
+      A: {
+        S: 'GoTo',
+        D: [pages[0]!.ref, 'Fit'],
+        Next: [js, launch],
+      },
+    }),
+  );
+  setAnnots(pdf, pages[0]!, [annot]);
+  return pdf.save();
+}
+
+export async function createCircularNextPdf(): Promise<Uint8Array> {
+  const { pdf, pages } = await newPdf(1);
+  const js = pdf.context.obj({
+    S: 'JavaScript',
+    JS: PDFString.of('app.alert(1)'),
+  });
+  const jsRef = register(pdf, js);
+  const goto = pdf.context.obj({
+    S: 'GoTo',
+    D: [pages[0]!.ref, 'Fit'],
+  });
+  const gotoRef = register(pdf, goto);
+  goto.set(PDFName.of('Next'), jsRef);
+  js.set(PDFName.of('Next'), gotoRef);
+  const annot = register(
+    pdf,
+    pdf.context.obj({
+      Type: 'Annot',
+      Subtype: 'Link',
+      Rect: [100, 100, 200, 120],
+      A: gotoRef,
+    }),
+  );
+  setAnnots(pdf, pages[0]!, [annot]);
+  return pdf.save();
+}
+
+export async function createCircularGotoNextPdf(): Promise<Uint8Array> {
+  const { pdf, pages } = await newPdf(1);
+  const goto = pdf.context.obj({
+    S: 'GoTo',
+    D: [pages[0]!.ref, 'Fit'],
+  });
+  const gotoRef = register(pdf, goto);
+  goto.set(PDFName.of('Next'), gotoRef);
+  const annot = register(
+    pdf,
+    pdf.context.obj({
+      Type: 'Annot',
+      Subtype: 'Link',
+      Rect: [100, 100, 200, 120],
+      A: gotoRef,
+    }),
+  );
+  setAnnots(pdf, pages[0]!, [annot]);
+  return pdf.save();
+}
+
+export async function createGotoThenJavascriptUriPdf(): Promise<Uint8Array> {
+  const { pdf, pages } = await newPdf(1);
+  const uri = register(
+    pdf,
+    pdf.context.obj({
+      S: 'URI',
+      URI: PDFString.of("javascript:alert('xss')"),
+    }),
+  );
+  const annot = register(
+    pdf,
+    pdf.context.obj({
+      Type: 'Annot',
+      Subtype: 'Link',
+      Rect: [100, 100, 200, 120],
+      A: {
+        S: 'GoTo',
+        D: [pages[0]!.ref, 'Fit'],
+        Next: uri,
+      },
+    }),
+  );
+  setAnnots(pdf, pages[0]!, [annot]);
+  return pdf.save();
+}
+
+export async function createCircularKidsPdf(): Promise<Uint8Array> {
+  const { pdf } = await newPdf(1);
+  pdf.catalog.set(
+    PDFName.of('OpenAction'),
+    pdf.context.obj({
+      S: 'JavaScript',
+      JS: PDFString.of('app.alert(1)'),
+    }),
+  );
+  const widget = register(
+    pdf,
+    pdf.context.obj({
+      Type: 'Annot',
+      Subtype: 'Widget',
+      Rect: [100, 100, 200, 120],
+      A: {
+        S: 'JavaScript',
+        JS: PDFString.of('app.alert(1)'),
+      },
+    }),
+  );
+  const parent = pdf.context.obj({
+    T: PDFString.of('cycle'),
+  });
+  const parentRef = register(pdf, parent);
+  parent.set(PDFName.of('Kids'), pdf.context.obj([widget, parentRef]));
+  pdf.catalog.set(
+    PDFName.of('AcroForm'),
+    pdf.context.obj({
+      Fields: [parentRef],
+    }),
+  );
+  return pdf.save();
+}
+
+export async function createCircularNamedTreePdf(): Promise<Uint8Array> {
+  const { pdf } = await newPdf(1);
+  const jsAction = register(
+    pdf,
+    pdf.context.obj({
+      S: 'JavaScript',
+      JS: PDFString.of('app.alert(1)'),
+    }),
+  );
+  const leaf = register(
+    pdf,
+    pdf.context.obj({
+      Names: [PDFString.of('OnLoad'), jsAction],
+    }),
+  );
+  const branch = pdf.context.obj({});
+  const branchRef = register(pdf, branch);
+  branch.set(PDFName.of('Kids'), pdf.context.obj([leaf, branchRef]));
+  pdf.catalog.set(
+    PDFName.of('Names'),
+    pdf.context.obj({
+      JavaScript: branchRef,
+    }),
+  );
+  return pdf.save();
+}
+
 export function pageAnnots(pdf: PDFDocument, pageIndex = 0): PDFDict[] {
   const annots = pdf.getPages()[pageIndex]?.node.lookup(PDFName.of('Annots'));
   if (!(annots instanceof PDFArray)) {

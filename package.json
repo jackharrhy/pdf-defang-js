@@ -1,6 +1,6 @@
 {
   "name": "pdf-defang-js",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Strip JavaScript, OpenAction, Launch actions and other active content from PDFs. TypeScript port of pdf-defang, on pdf-lib.",
   "type": "module",
   "sideEffects": false,
@@ -24,7 +24,8 @@
     "build": "tsdown",
     "prepack": "tsdown --no-publint --no-attw",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "publish": "npm test && npm run build && npm publish --ignore-scripts"
   },
   "keywords": [
     "pdf",

@@ -1,5 +1,7 @@
 import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFString } from 'pdf-lib';
 
+import { extractScheme, isSafeUri } from './uri.ts';
+
 export function asDict(value: unknown): PDFDict | undefined {
   return value instanceof PDFDict ? value : undefined;
 }
@@ -28,7 +30,73 @@ export function actionTypeName(action: PDFDict): string | undefined {
   return type instanceof PDFName ? type.asString() : undefined;
 }
 
-export function countNamedTreeEntries(tree: PDFDict): number {
+export function collectActionChain(start: PDFDict): PDFDict[] {
+  const chain: PDFDict[] = [];
+  const seen = new Set<PDFDict>();
+  const queue: PDFDict[] = [start];
+  while (queue.length > 0) {
+    const action = queue.shift();
+    if (!action || seen.has(action)) {
+      continue;
+    }
+    seen.add(action);
+    chain.push(action);
+    const next = action.lookup(PDFName.of('Next'));
+    const nextDict = asDict(next);
+    if (nextDict) {
+      queue.push(nextDict);
+      continue;
+    }
+    const nextArray = asArray(next);
+    if (!nextArray) {
+      continue;
+    }
+    for (let i = 0; i < nextArray.size(); i += 1) {
+      const step = asDict(nextArray.lookup(i));
+      if (step) {
+        queue.push(step);
+      }
+    }
+  }
+  return chain;
+}
+
+export function inspectActionChain(
+  start: PDFDict,
+  dangerousTypes: ReadonlySet<string>,
+): {
+  types: string[];
+  unsafeUriSchemes: string[];
+} {
+  const types: string[] = [];
+  const seenTypes = new Set<string>();
+  const unsafeUriSchemes: string[] = [];
+  for (const step of collectActionChain(start)) {
+    const stype = actionTypeName(step) ?? '';
+    if (dangerousTypes.has(stype)) {
+      const name = stype.replace(/^\//, '');
+      if (!seenTypes.has(name)) {
+        seenTypes.add(name);
+        types.push(name);
+      }
+      continue;
+    }
+    if (stype !== '/URI') {
+      continue;
+    }
+    const uri = pdfText(step.lookup(PDFName.of('URI')));
+    if (uri !== undefined && !isSafeUri(uri)) {
+      unsafeUriSchemes.push(extractScheme(uri));
+    }
+  }
+  return { types, unsafeUriSchemes };
+}
+
+export function countNamedTreeEntries(tree: PDFDict, seen: Set<PDFDict> = new Set<PDFDict>()): number {
+  if (seen.has(tree)) {
+    return 0;
+  }
+  seen.add(tree);
   try {
     const names = asArray(tree.lookup(PDFName.of('Names')));
     if (names) {
@@ -42,7 +110,7 @@ export function countNamedTreeEntries(tree: PDFDict): number {
     for (let i = 0; i < kids.size(); i += 1) {
       const kid = asDict(kids.lookup(i));
       if (kid) {
-        total += countNamedTreeEntries(kid);
+        total += countNamedTreeEntries(kid, seen);
       }
     }
     return total;
@@ -60,14 +128,18 @@ export function visitArrayDicts(array: PDFArray, visit: (dict: PDFDict) => void)
   }
 }
 
-function visitFieldTree(field: PDFDict, visit: (dict: PDFDict) => void): void {
+function visitFieldTree(field: PDFDict, visit: (dict: PDFDict) => void, seen: Set<PDFDict>): void {
+  if (seen.has(field)) {
+    return;
+  }
+  seen.add(field);
   visit(field);
   const kids = asArray(field.lookup(PDFName.of('Kids')));
   if (!kids) {
     return;
   }
   visitArrayDicts(kids, (kid) => {
-    visitFieldTree(kid, visit);
+    visitFieldTree(kid, visit, seen);
   });
 }
 
@@ -85,7 +157,7 @@ export function visitFormAndPageDicts(pdf: PDFDocument, visit: (dict: PDFDict) =
   const fields = asArray(acroFormDict(pdf)?.lookup(PDFName.of('Fields')));
   if (fields) {
     visitArrayDicts(fields, (field) => {
-      visitFieldTree(field, visitOnce);
+      visitFieldTree(field, visit, seen);
     });
   }
 

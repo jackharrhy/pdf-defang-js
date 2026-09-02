@@ -1,9 +1,8 @@
 import { PDFDict, PDFDocument, PDFName } from 'pdf-lib';
 
-import { acroFormDict, actionTypeName, asDict, countNamedTreeEntries, namesDict, pdfText, visitFormAndPageDicts } from './pdf.ts';
+import { acroFormDict, asDict, countNamedTreeEntries, inspectActionChain, namesDict, visitFormAndPageDicts } from './pdf.ts';
 import type { SanitizeReport } from './report.ts';
 import type { Level } from './types.ts';
-import { extractScheme, isSafeUri } from './uri.ts';
 
 export const DANGEROUS_ACTION_TYPES_STRICT: ReadonlySet<string> = new Set([
   '/JavaScript',
@@ -106,21 +105,20 @@ function stripAnnotation(
   try {
     const action = asDict(annot.lookup(PDFName.of('A')));
     if (action) {
-      const stype = actionTypeName(action) ?? '';
-      if (dangerousTypes.has(stype)) {
-        report.annotations_with_actions += 1;
-        report.annotation_action_types.push(stype.replace(/^\//, ''));
-        annot.delete(PDFName.of('A'));
-      } else if (stype === '/URI') {
-        const uri = pdfText(action.lookup(PDFName.of('URI')));
-        if (uri !== undefined && !isSafeUri(uri)) {
-          const scheme = extractScheme(uri);
+      const hit = inspectActionChain(action, dangerousTypes);
+      const dirty = hit.types.length > 0 || hit.unsafeUriSchemes.length > 0;
+      if (dirty) {
+        if (hit.types.length > 0) {
+          report.annotations_with_actions += 1;
+          report.annotation_action_types.push(...hit.types);
+        }
+        for (const scheme of hit.unsafeUriSchemes) {
           report.dangerous_uris_removed += 1;
           if (scheme && !report.dangerous_uri_schemes_removed.includes(scheme)) {
             report.dangerous_uri_schemes_removed.push(scheme);
           }
-          annot.delete(PDFName.of('A'));
         }
+        annot.delete(PDFName.of('A'));
       }
     }
     if (level === 'strict') {

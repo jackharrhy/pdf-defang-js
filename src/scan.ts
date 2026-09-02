@@ -3,17 +3,15 @@ import { PDFDict, PDFDocument, PDFName } from 'pdf-lib';
 import { describeLoadFailure, loadPdf } from './load.ts';
 import {
   acroFormDict,
-  actionTypeName,
   asDict,
   countNamedTreeEntries,
+  inspectActionChain,
   namesDict,
-  pdfText,
   visitFormAndPageDicts,
 } from './pdf.ts';
 import { ScanReport } from './report.ts';
 import { DANGEROUS_ACTION_TYPES_STRICT } from './strip.ts';
 import type { RiskLevel } from './types.ts';
-import { extractScheme, isSafeUri } from './uri.ts';
 
 export async function scan(bytes: Uint8Array): Promise<ScanReport> {
   const report = new ScanReport();
@@ -112,18 +110,17 @@ function scanAnnotation(
   try {
     const action = asDict(annot.lookup(PDFName.of('A')));
     if (action) {
-      const stype = actionTypeName(action) ?? '';
-      if (DANGEROUS_ACTION_TYPES_STRICT.has(stype)) {
+      const hit = inspectActionChain(action, DANGEROUS_ACTION_TYPES_STRICT);
+      if (hit.types.length > 0) {
         report.annotations_with_actions += 1;
-        seenTypes.add(stype.replace(/^\//, ''));
-      } else if (stype === '/URI') {
-        const uri = pdfText(action.lookup(PDFName.of('URI')));
-        if (uri !== undefined && !isSafeUri(uri)) {
-          report.dangerous_uris += 1;
-          const scheme = extractScheme(uri);
-          if (scheme) {
-            seenUriSchemes.add(scheme);
-          }
+        for (const type of hit.types) {
+          seenTypes.add(type);
+        }
+      }
+      report.dangerous_uris += hit.unsafeUriSchemes.length;
+      for (const scheme of hit.unsafeUriSchemes) {
+        if (scheme) {
+          seenUriSchemes.add(scheme);
         }
       }
     }
