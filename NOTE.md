@@ -2,6 +2,8 @@
 
 Close these in the pdf-lib walk. Python pdf-defang has the same holes.
 
+Astron ingest already walks `/Next`, AcroForm `Kids`, and named trees iteratively with a `seen` set. Match that here so a long unique chain cannot blow the JS stack.
+
 ## `/A /Next`
 
 Acrobat runs the whole chain. A first action of `GoTo` or a safe URI whose `/Next` (dict or array) is JavaScript, Launch, or another listed type is still dirty. Treat the whole `/A` as dirty if any step is.
