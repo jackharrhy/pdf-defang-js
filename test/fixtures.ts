@@ -747,6 +747,109 @@ export async function createCircularNamedTreePdf(): Promise<Uint8Array> {
   return pdf.save();
 }
 
+const DEEP_HOPS = 4000;
+
+export async function createDeepNextPdf(): Promise<Uint8Array> {
+  const { pdf, pages } = await newPdf(1);
+  const js = register(
+    pdf,
+    pdf.context.obj({
+      S: 'JavaScript',
+      JS: PDFString.of('app.alert(1)'),
+    }),
+  );
+  let next = js;
+  for (let i = 0; i < DEEP_HOPS; i += 1) {
+    const goto = pdf.context.obj({
+      S: 'GoTo',
+      D: [pages[0]!.ref, 'Fit'],
+    });
+    const gotoRef = register(pdf, goto);
+    goto.set(PDFName.of('Next'), next);
+    next = gotoRef;
+  }
+  const annot = register(
+    pdf,
+    pdf.context.obj({
+      Type: 'Annot',
+      Subtype: 'Link',
+      Rect: [100, 100, 200, 120],
+      A: next,
+    }),
+  );
+  setAnnots(pdf, pages[0]!, [annot]);
+  return pdf.save();
+}
+
+export async function createDeepKidsPdf(): Promise<Uint8Array> {
+  const { pdf } = await newPdf(1);
+  pdf.catalog.set(
+    PDFName.of('OpenAction'),
+    pdf.context.obj({
+      S: 'JavaScript',
+      JS: PDFString.of('app.alert(1)'),
+    }),
+  );
+  const widget = register(
+    pdf,
+    pdf.context.obj({
+      Type: 'Annot',
+      Subtype: 'Widget',
+      Rect: [100, 100, 200, 120],
+      A: {
+        S: 'JavaScript',
+        JS: PDFString.of('app.alert(1)'),
+      },
+    }),
+  );
+  let child = widget;
+  for (let i = 0; i < DEEP_HOPS; i += 1) {
+    const parent = pdf.context.obj({
+      T: PDFString.of(`n${i}`),
+    });
+    const parentRef = register(pdf, parent);
+    parent.set(PDFName.of('Kids'), pdf.context.obj([child]));
+    child = parentRef;
+  }
+  pdf.catalog.set(
+    PDFName.of('AcroForm'),
+    pdf.context.obj({
+      Fields: [child],
+    }),
+  );
+  return pdf.save();
+}
+
+export async function createDeepNamedTreePdf(): Promise<Uint8Array> {
+  const { pdf } = await newPdf(1);
+  const jsAction = register(
+    pdf,
+    pdf.context.obj({
+      S: 'JavaScript',
+      JS: PDFString.of('app.alert(1)'),
+    }),
+  );
+  let child = register(
+    pdf,
+    pdf.context.obj({
+      Names: [PDFString.of('OnLoad'), jsAction],
+    }),
+  );
+  for (let i = 0; i < DEEP_HOPS; i += 1) {
+    const branch = pdf.context.obj({});
+    const branchRef = register(pdf, branch);
+    branch.set(PDFName.of('Kids'), pdf.context.obj([child]));
+    child = branchRef;
+  }
+  pdf.catalog.set(
+    PDFName.of('Names'),
+    pdf.context.obj({
+      JavaScript: child,
+    }),
+  );
+  return pdf.save();
+}
+
 export function pageAnnots(pdf: PDFDocument, pageIndex = 0): PDFDict[] {
   const annots = pdf.getPages()[pageIndex]?.node.lookup(PDFName.of('Annots'));
   if (!(annots instanceof PDFArray)) {

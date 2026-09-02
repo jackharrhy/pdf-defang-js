@@ -20,7 +20,7 @@ In scope: content the PDF asks a viewer to execute. Out of scope: viewer parser 
 
 Fail loudly on the bytes API. Unparseable or encrypted input throws `SanitizeError`; do not return the original bytes and call it clean. `sanitizeFile` can leave the file and put `error` on the report. There is no `password` option. Decrypt elsewhere, then call this on the plaintext.
 
-The walk has to finish. Visit page Annots and the AcroForm Fields/Kids tree once each. Follow `/A /Next` (dict or array). Cycles in Kids and named trees stop on a seen set. A throw mid-walk is a bug: catalog hooks already found would never get written. Fail on parse and encrypt; do not fail-open.
+The walk has to finish. Visit page Annots and the AcroForm Fields/Kids tree once each. Follow `/A /Next` (dict or array). Walk with an explicit stack or queue and a seen set: cycles stop, and a long unique chain must not blow the stack. A throw mid-walk is a bug: catalog hooks already found would never get written. Fail on parse and encrypt; do not fail-open.
 
 Preserve visible content. Do not rewrite page content streams. Use pdf-lib, not a qpdf/pikepdf native dependency. After a successful load, hex names and object streams are already visible.
 

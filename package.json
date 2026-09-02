@@ -1,6 +1,6 @@
 {
   "name": "pdf-defang-js",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Strip JavaScript, OpenAction, Launch actions and other active content from PDFs. TypeScript port of pdf-defang, on pdf-lib.",
   "type": "module",
   "sideEffects": false,

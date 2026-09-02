@@ -34,8 +34,8 @@ export function collectActionChain(start: PDFDict): PDFDict[] {
   const chain: PDFDict[] = [];
   const seen = new Set<PDFDict>();
   const queue: PDFDict[] = [start];
-  while (queue.length > 0) {
-    const action = queue.shift();
+  for (let i = 0; i < queue.length; i += 1) {
+    const action = queue[i];
     if (!action || seen.has(action)) {
       continue;
     }
@@ -51,8 +51,8 @@ export function collectActionChain(start: PDFDict): PDFDict[] {
     if (!nextArray) {
       continue;
     }
-    for (let i = 0; i < nextArray.size(); i += 1) {
-      const step = asDict(nextArray.lookup(i));
+    for (let j = 0; j < nextArray.size(); j += 1) {
+      const step = asDict(nextArray.lookup(j));
       if (step) {
         queue.push(step);
       }
@@ -92,31 +92,37 @@ export function inspectActionChain(
   return { types, unsafeUriSchemes };
 }
 
-export function countNamedTreeEntries(tree: PDFDict, seen: Set<PDFDict> = new Set<PDFDict>()): number {
-  if (seen.has(tree)) {
-    return 0;
-  }
-  seen.add(tree);
-  try {
-    const names = asArray(tree.lookup(PDFName.of('Names')));
-    if (names) {
-      return Math.floor(names.size() / 2);
+export function countNamedTreeEntries(tree: PDFDict): number {
+  const seen = new Set<PDFDict>();
+  const stack: PDFDict[] = [tree];
+  let total = 0;
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (!node || seen.has(node)) {
+      continue;
     }
-    const kids = asArray(tree.lookup(PDFName.of('Kids')));
-    if (!kids) {
-      return 0;
-    }
-    let total = 0;
-    for (let i = 0; i < kids.size(); i += 1) {
-      const kid = asDict(kids.lookup(i));
-      if (kid) {
-        total += countNamedTreeEntries(kid, seen);
+    seen.add(node);
+    try {
+      const names = asArray(node.lookup(PDFName.of('Names')));
+      if (names) {
+        total += Math.floor(names.size() / 2);
+        continue;
       }
+      const kids = asArray(node.lookup(PDFName.of('Kids')));
+      if (!kids) {
+        continue;
+      }
+      for (let i = 0; i < kids.size(); i += 1) {
+        const kid = asDict(kids.lookup(i));
+        if (kid) {
+          stack.push(kid);
+        }
+      }
+    } catch {
+      continue;
     }
-    return total;
-  } catch {
-    return 0;
   }
+  return total;
 }
 
 export function visitArrayDicts(array: PDFArray, visit: (dict: PDFDict) => void): void {
@@ -128,19 +134,13 @@ export function visitArrayDicts(array: PDFArray, visit: (dict: PDFDict) => void)
   }
 }
 
-function visitFieldTree(field: PDFDict, visit: (dict: PDFDict) => void, seen: Set<PDFDict>): void {
-  if (seen.has(field)) {
-    return;
+function pushDictsReversed(array: PDFArray, stack: PDFDict[]): void {
+  for (let i = array.size() - 1; i >= 0; i -= 1) {
+    const dict = asDict(array.lookup(i));
+    if (dict) {
+      stack.push(dict);
+    }
   }
-  seen.add(field);
-  visit(field);
-  const kids = asArray(field.lookup(PDFName.of('Kids')));
-  if (!kids) {
-    return;
-  }
-  visitArrayDicts(kids, (kid) => {
-    visitFieldTree(kid, visit, seen);
-  });
 }
 
 export function visitFormAndPageDicts(pdf: PDFDocument, visit: (dict: PDFDict) => void): void {
@@ -154,11 +154,22 @@ export function visitFormAndPageDicts(pdf: PDFDocument, visit: (dict: PDFDict) =
     visit(dict);
   };
 
+  const stack: PDFDict[] = [];
   const fields = asArray(acroFormDict(pdf)?.lookup(PDFName.of('Fields')));
   if (fields) {
-    visitArrayDicts(fields, (field) => {
-      visitFieldTree(field, visit, seen);
-    });
+    pushDictsReversed(fields, stack);
+  }
+  while (stack.length > 0) {
+    const field = stack.pop();
+    if (!field || seen.has(field)) {
+      continue;
+    }
+    seen.add(field);
+    visit(field);
+    const kids = asArray(field.lookup(PDFName.of('Kids')));
+    if (kids) {
+      pushDictsReversed(kids, stack);
+    }
   }
 
   for (const page of pdf.getPages()) {

@@ -8,6 +8,9 @@ import {
   createCircularKidsPdf,
   createCircularNamedTreePdf,
   createCircularNextPdf,
+  createDeepKidsPdf,
+  createDeepNamedTreePdf,
+  createDeepNextPdf,
   createGotoThenActionArrayPdf,
   createGotoThenJavaScriptPdf,
   createGotoThenJavascriptUriPdf,
@@ -17,16 +20,19 @@ import {
 } from './fixtures.ts';
 import { catalogHas, namesHas, reload, sameBytes } from './inspect.ts';
 
-function firstKid(field: PDFDict): PDFDict {
-  const kids = field.lookup(PDFName.of('Kids'));
-  if (!(kids instanceof PDFArray)) {
-    throw new Error('expected Kids');
+function deepestKid(field: PDFDict): PDFDict {
+  let current = field;
+  for (;;) {
+    const kids = current.lookup(PDFName.of('Kids'));
+    if (!(kids instanceof PDFArray) || kids.size() === 0) {
+      return current;
+    }
+    const kid = kids.lookup(0);
+    if (!(kid instanceof PDFDict)) {
+      return current;
+    }
+    current = kid;
   }
-  const kid = kids.lookup(0);
-  if (!(kid instanceof PDFDict)) {
-    throw new Error('expected kid dict');
-  }
-  return kid;
 }
 
 describe('/A /Next chains', () => {
@@ -121,6 +127,18 @@ describe('/A /Next chains', () => {
     expect(report.annotations_with_actions).toBe(0);
     expect(actionTypesOnPages(await reload(bytes))).toEqual([]);
   });
+
+  it('strips JavaScript at the end of a long unique Next chain', async () => {
+    const original = await createDeepNextPdf();
+    const scan = await pdfDefang.scan(original);
+    expect(scan.annotations_with_actions).toBe(1);
+    expect(scan.annotation_action_types).toEqual(['JavaScript']);
+
+    const { bytes, report } = await pdfDefang.sanitize(original, { returnReport: true });
+    expect(report.annotations_with_actions).toBe(1);
+    expect(report.annotation_action_types).toEqual(['JavaScript']);
+    expect(actionTypesOnPages(await reload(bytes))).toEqual([]);
+  });
 });
 
 describe('circular Kids', () => {
@@ -138,7 +156,35 @@ describe('circular Kids', () => {
     expect(report.annotation_action_types).toEqual(['JavaScript']);
     const pdf = await reload(bytes);
     expect(catalogHas(pdf, 'OpenAction')).toBe(false);
-    expect(firstKid(firstAcroFormField(pdf)).has(PDFName.of('A'))).toBe(false);
+    expect(deepestKid(firstAcroFormField(pdf)).has(PDFName.of('A'))).toBe(false);
+  });
+
+  it('finishes a deep unique Kids tree and still strips catalog hooks', async () => {
+    const original = await createDeepKidsPdf();
+    const scan = await pdfDefang.scan(original);
+    expect(scan.has_open_action).toBe(true);
+    expect(scan.annotations_with_actions).toBe(1);
+    expect(scan.annotation_action_types).toEqual(['JavaScript']);
+
+    const { bytes, report } = await pdfDefang.sanitize(original, { returnReport: true });
+    expect(report.open_action_removed).toBe(true);
+    expect(report.annotations_with_actions).toBe(1);
+    expect(report.annotation_action_types).toEqual(['JavaScript']);
+    const pdf = await reload(bytes);
+    expect(catalogHas(pdf, 'OpenAction')).toBe(false);
+    expect(deepestKid(firstAcroFormField(pdf)).has(PDFName.of('A'))).toBe(false);
+  });
+
+  it('counts named JavaScript through a deep unique name tree', async () => {
+    const original = await createDeepNamedTreePdf();
+    const scan = await pdfDefang.scan(original);
+    expect(scan.has_javascript).toBe(true);
+    expect(scan.javascript_in_names).toBe(1);
+    expect(scan.risk_level).toBe('high');
+
+    const { bytes, report } = await pdfDefang.sanitize(original, { returnReport: true });
+    expect(report.javascript_in_names).toBe(1);
+    expect(namesHas(await reload(bytes), 'JavaScript')).toBe(false);
   });
 
   it('counts named JavaScript through a cyclic name tree', async () => {
